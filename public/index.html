@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script>
+
+  const state = {
+    time: new Date(),
+    lots: [
+      {
+        id: 1,
+        name: 'Apple',
+        description: 'Apple description',
+        price: 16
+      },
+      {
+        id: 2,
+        name: 'Orange',
+        description: 'Orange description',
+        price: 41
+      }
+    ]
+  }
+
+  function App({ state }) {
+    const node = document.createElement('div');
+    node.className = 'app';
+    node.append(Header());
+    node.append(Clock({ time: state.time }));
+    node.append(Lots({ lots: state.lots }));
+
+    return node;
+  }
+
+  function Header() {
+    const node = document.createElement('header');
+    node.className = 'header';
+    node.append(Logo());
+
+    return node;
+  }
+
+  function Logo() {
+    const node = document.createElement('img');
+    node.className = 'logo';
+    node.src = 'logo.png';
+
+    return node;
+  }
+
+  function Clock({ time }) {
+    const node = document.createElement('div');
+    node.className = 'clock';
+    node.innerText = time.toLocaleTimeString();
+
+    return node;
+  }
+
+function Lots({ lots }) {
+  const node = document.createElement('div');
+  lots.forEach((lot) => {
+    node.append(Lot({ lot }));
+  });
+
+  return node;
+}
+
+function Lot({ lot }) {
+  const article = document.createElement('article');
+  article.className = 'lot';
+
+  const articlePrice = document.createElement('div');
+  articlePrice.className = 'price';
+  articlePrice.innerText = lot.price;
+  article.append(articlePrice);
+
+  const articleName = document.createElement('h1');
+  articleName.innerText = lot.name;
+  article.append(articleName);
+
+  const articleDescription = document.createElement('p');
+  articleDescription.innerText = lot.description;
+  article.append(articleDescription);
+
+  return article;
+}
+
+render(
+  App({ state }),
+  document.getElementById('root')
+);
+
+function render(newDom, realDomRoot) {
+  realDomRoot.append(newDom);
+}
+
+</script>
+
+</body>
+</html>
