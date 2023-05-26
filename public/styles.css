@@ -57,3 +57,9 @@ body {
     border-radius: 6px;
     margin-bottom: 10px;
 }
+
+.loading {
+    background-color: lightgrey;
+    padding: 15px;
+    text-align: center;
+}
