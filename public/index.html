@@ -137,23 +137,24 @@
   }
 
   function Lot({ lot }) {
-    const article = document.createElement('article');
-    article.className = 'lot';
+    const node = document.createElement('article');
+    node.className = 'lot';
+    node.dataset.key = lot.id;
 
     const price = document.createElement('div');
     price.className = 'price';
     price.innerText = lot.price;
-    article.append(price);
+    node.append(price);
 
     const name = document.createElement('h1');
     name.innerText = lot.name;
-    article.append(name);
+    node.append(name);
 
     const description = document.createElement('p');
     description.innerText = lot.description;
-    article.append(description);
+    node.append(description);
 
-    return article;
+    return node;
   }
 
   function renderView(state) {
@@ -204,9 +205,77 @@
     });
   });
 
-  function render(newDom, realDomRoot) {
-    realDomRoot.innerHTML = '';
-    realDomRoot.append(newDom);
+  function render(virtualDom, realDomRoot) {
+    const virtualDomRoot = document.createElement(realDomRoot.tagName);
+    virtualDomRoot.id = realDomRoot.id;
+    virtualDomRoot.append(virtualDom);
+
+    sync(virtualDomRoot, realDomRoot);
+  }
+
+  function sync(virtualNode, realNode) {
+    // sync element
+    if (virtualNode.id !== realNode.id) {
+      realNode.id = virtualNode.id;
+    }
+
+    if (virtualNode.className !== realNode.className) {
+      realNode.className = virtualNode.className;
+    }
+
+    if (virtualNode.attributes) {
+      Array.from(virtualNode.attributes).forEach((attr) => {
+        realNode[attr.name] = attr.value;
+      });
+    }
+
+    if (virtualNode.nodeValue !== realNode.nodeValue) {
+      realNode.nodeValue = virtualNode.nodeValue;
+    }
+
+    // sync child nodes
+
+    const virtualChildren = virtualNode.childNodes;
+    const readChildren = realNode.childNodes;
+
+    for (let i = 0; i < virtualChildren.length || i < readChildren.length; i++) {
+      const virtualChild = virtualChildren[i];
+      const realChild = readChildren[i];
+
+      // Remove
+      if (virtualChild === undefined && realChild !== undefined) {
+        realNode.remove(realChild);
+      }
+
+      // Update
+      if (virtualChild !== undefined && realChild !== undefined && virtualChild.tagName === realChild.tagName) {
+        sync(virtualChild, realChild);
+      }
+
+      // Replace
+      if (virtualChild !== undefined && realChild !== undefined && virtualChild.tagName !== realChild.tagName) {
+        const newRealChild = createRealModeByVirtual(virtualChild);
+        sync(virtualChild, newRealChild);
+
+        realNode.replaceChild(newRealChild, realChild);
+      }
+
+      // Add
+      if (virtualChild !== undefined && realChild === undefined) {
+        const newRealChild = createRealModeByVirtual(virtualChild);
+        sync(virtualChild, newRealChild);
+
+        realNode.appendChild(newRealChild);
+      }
+    }
+  }
+
+  function createRealModeByVirtual(virtual) {
+    if (virtual.nodeType === Node.TEXT_NODE) {
+      return document.createTextNode('');
+    }
+
+    return document.createElement(virtual.tagName);
   }
 
 </script>
