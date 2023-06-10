@@ -37,7 +37,7 @@
                   price: 41
                 }
               ]);
-            }, 1000)
+            }, 1500)
           });
         }
         default: {
@@ -62,10 +62,38 @@
     }
   }
 
-  let state = {
+  const initialState = {
     time: new Date(),
     lots: null
   }
+
+  class Store {
+    constructor (state) {
+      this.state = state;
+      this.listeners = [];
+    }
+
+    getState() {
+      return this.state;
+    }
+
+    changeState(diff) {
+      this.state = {
+        ...this.state,
+        ...(typeof diff === 'function' ? diff(this.state) : diff)
+      };
+
+      this.listeners.forEach((listener) => {
+        listener();
+      });
+    }
+
+    subscribe(callback) {
+      this.listeners.push(callback);
+    }
+  }
+
+  const store = new Store(initialState);
 
   function App({ state }) {
     return (
@@ -150,28 +178,25 @@
     );
   }
 
-  renderView(state);
+  store.subscribe(() => {
+    renderView(store.getState());
+  });
+
+  renderView(store.getState());
 
   setInterval(() => {
-    state = {
-      ...state,
+    store.changeState({
       time: new Date()
-    };
-
-    renderView(state);
+    });
   }, 1000);
 
   api.get('/lots').then((lots) => {
-    state = {
-      ...state,
+    store.changeState({
       lots
-    };
-
-    renderView(state);
+    });
 
     const onPrice = (data) => {
-      state = {
-        ...state,
+      store.changeState((state) => ({
         lots: state.lots.map((lot) => {
           if (lot.id === data.id) {
             return {
@@ -181,9 +206,7 @@
           }
           return lot;
         })
-      }
-
-      renderView(state);
+      }));
     }
 
     lots.forEach((lot) => {
