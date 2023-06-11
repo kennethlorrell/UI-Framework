@@ -10,6 +10,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
     <script src="https://unpkg.com/redux@4.2.1/dist/redux.js" crossorigin></script>
+    <script src="https://unpkg.com/ionicons@7.1.0/dist/ionicons.js" crossorigin></script>
     <title>🕵 Investigating Reactivity</title>
 </head>
 <body>
@@ -29,13 +30,15 @@
                   id: 1,
                   name: 'Apple',
                   description: 'Apple description',
-                  price: 16
+                  price: 16,
+                  is_favorite: true
                 },
                 {
                   id: 2,
                   name: 'Orange',
                   description: 'Orange description',
-                  price: 41
+                  price: 41,
+                  is_favorite: false
                 }
               ]);
             }, 1500)
@@ -45,6 +48,16 @@
           throw new Error('Unknown address');
         }
       }
+    },
+    post(url) {
+      if (/^\/lots\/(\d+)\/toggle-favorite$/.exec(url)) {
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            resolve();
+          }, 500);
+        })
+      }
+      throw new Error('Unknown address');
     }
   }
 
@@ -81,12 +94,20 @@
     }
   }
 
+  function setTime(time) {
+    return {
+      type: SET_TIME,
+      time
+    }
+  }
+
   const auctionInitialState = {
     lots: null
   }
 
   const SET_LOTS = 'SET_LOTS';
   const CHANGE_LOT_PRICE = 'UPDATE_LOT_PRICE';
+  const TOGGLE_FAVORITE_LOT = 'TOGGLE_FAVORITE';
 
   function auctionReducer(state = auctionInitialState, action) {
     switch (action.type) {
@@ -108,15 +129,21 @@
             return lot;
           })
         };
+      case TOGGLE_FAVORITE_LOT:
+        return {
+          ...state,
+          lots: state.lots.map((lot) => {
+            if (lot.id === action.id) {
+              return {
+                ...lot,
+                is_favorite: !lot.is_favorite
+              };
+            }
+            return lot;
+          })
+        }
       default:
         return state;
-    }
-  }
-
-  function setTime(time) {
-    return {
-      type: SET_TIME,
-      time
     }
   }
 
@@ -135,17 +162,24 @@
     }
   }
 
+  function toggleFavoriteLot(id) {
+    return {
+      type: TOGGLE_FAVORITE_LOT,
+      id
+    }
+  }
+
   const store = Redux.createStore(Redux.combineReducers({
     clock: clockReducer,
     auction: auctionReducer
   }));
 
-  function App({ state }) {
+  function App({ state, toggleFavorite }) {
     return (
       <div className="app">
         <Header />
         <Clock time={state.clock.time} />
-        <Lots lots={state.auction.lots} />
+        <Lots lots={state.auction.lots} toggleFavorite={toggleFavorite} />
       </div>
     );
   }
@@ -189,7 +223,7 @@
     );
   }
 
-  function Lots({ lots }) {
+  function Lots({ lots, toggleFavorite }) {
     if (lots === null) {
       return <Loading />;
     }
@@ -198,36 +232,67 @@
       <div className="lots">
         {
           lots.map(
-            (lot) => <Lot lot={lot} key={lot.id} />
+            (lot) => (
+              <Lot
+                lot={lot}
+                key={lot.id}
+                toggleFavorite={toggleFavorite}
+              />
+            )
           )}
       </div>
     );
   }
 
-  function Lot({ lot }) {
+  function Lot({ lot, toggleFavorite }) {
     return (
-      <article className="lot">
+      <article className={`lot` + (lot.is_favorite ? ' favorite' : '')}>
         <div className="price">
           {lot.price}
         </div>
         <h1>{lot.name}</h1>
         <div>{lot.description}</div>
+        <Favorite
+          isFavorite={lot.is_favorite}
+          toggleFavorite={() => toggleFavorite(lot.id)}
+        />
       </article>
     );
   }
 
-  function renderView(state) {
+  function Favorite({ isFavorite, toggleFavorite }) {
+    return (
+      <button
+        type="button"
+        onClick={toggleFavorite}
+        className={isFavorite ? 'unfavorite' : 'favorite' }
+      >
+        <ion-icon name={isFavorite ? 'heart-sharp' : 'heart-outline'} />
+        { isFavorite ? 'Unfavorite' : 'Favorite'}
+      </button>
+    );
+  }
+
+  function renderView(store) {
+    const state = store.getState();
+
+    const toggleFavorite = (id) => {
+      api.post(`/lots/${id}/toggle-favorite`).then(() => {
+        store.dispatch(toggleFavoriteLot(id));
+      });
+    }
+
     ReactDOM.render(
-      <App state={state} />,
+      <App state={state} toggleFavorite={toggleFavorite} />,
       document.getElementById('root')
     );
   }
 
   store.subscribe(() => {
-    renderView(store.getState());
+    renderView(store);
   });
 
-  renderView(store.getState());
+  renderView(store);
 
   setInterval(() => {
     store.dispatch(setTime(new Date()));
