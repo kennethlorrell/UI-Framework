@@ -5,15 +5,20 @@
     <meta name="viewport"
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="https://unpkg.com/mocha@10.2.0/mocha.css">
     <link rel="stylesheet" href="styles.css">
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
     <script src="https://unpkg.com/redux@4.2.1/dist/redux.js" crossorigin></script>
     <script src="https://unpkg.com/ionicons@7.1.0/dist/ionicons.js" crossorigin></script>
+    <script src="https://unpkg.com/mocha@10.2.0/mocha.js" crossorigin></script>
+    <script src="https://unpkg.com/chai@4.3.7/chai.js" crossorigin></script>
     <title>🕵 Investigating Reactivity</title>
 </head>
 <body>
+
+<div id="mocha"></div>
 
 <div id="root"></div>
 
@@ -174,12 +179,14 @@
     auction: auctionReducer
   }));
 
-  function App({ state, toggleFavorite }) {
+  const StoreContext = React.createContext();
+
+  function App() {
     return (
       <div className="app">
         <Header />
-        <Clock time={state.clock.time} />
-        <Lots lots={state.auction.lots} toggleFavorite={toggleFavorite} />
+        <ClockConnected />
+        <LotsConnected />
       </div>
     );
   }
@@ -205,8 +212,21 @@
       <img
         className="logo"
         src="logo.png"
-        alt="logo"
+        alt="Logotype"
       />
+    );
+  }
+
+  function ClockConnected() {
+    return (
+      <StoreContext.Consumer>
+        {(store) => {
+          const state = store.getState();
+          const time = state.clock.time;
+
+          return <Clock time={time} />
+        }}
+      </StoreContext.Consumer>
     );
   }
 
@@ -223,7 +243,58 @@
     );
   }
 
-  function Lots({ lots, toggleFavorite }) {
+  //  tests
+
+  // mocha.setup('bdd');
+  // const assert = chai.assert;
+  //
+  // describe('Clock', () => {
+  //
+  //   it('Render time of day', () => {
+  //     const container = document.createElement('div');
+  //
+  //     ReactDOM.render(
+  //       <Clock time={new Date('2023-06-11T13:51:20')} />,
+  //       container
+  //     );
+  //
+  //     const clock = container.querySelector('.clock');
+  //
+  //     assert.equal(clock.querySelector('.value').innerText, '1:51:20 PM');
+  //     assert.equal(clock.querySelector('.icon').className, 'icon day');
+  //   });
+  //
+  //   it('Render time of night', () => {
+  //     const container = document.createElement('div');
+  //
+  //     ReactDOM.render(
+  //     <Clock time={new Date('2023-06-12T04:20:00')} />,
+  //     container
+  //     );
+  //
+  //     const clock = container.querySelector('.clock');
+  //
+  //     assert.equal(clock.querySelector('.value').innerText, '4:20:00 AM');
+  //     assert.equal(clock.querySelector('.icon').className, 'icon night');
+  //   });
+  // });
+  //
+  // mocha.run();
+
+  function LotsConnected() {
+    return (
+      <StoreContext.Consumer>
+        {(store) => {
+          const state = store.getState();
+          const lots = state.auction.lots;
+
+          return <Lots lots={lots} />;
+        }}
+      </StoreContext.Consumer>
+    );
+  }
+
+  function Lots({ lots }) {
     if (lots === null) {
       return <Loading />;
     }
@@ -232,15 +303,26 @@
       <div className="lots">
         {
           lots.map(
-            (lot) => (
-              <Lot
-                lot={lot}
-                key={lot.id}
-                toggleFavorite={toggleFavorite}
-              />
-            )
-          )}
+            (lot) => <LotConnected key={lot.id} lot={lot} />
+          )
+        }
       </div>
+    );
+  }
+
+  function LotConnected({ lot }) {
+    return (
+      <StoreContext.Consumer>
+        {({ dispatch }) => {
+          const toggleFavorite = (id) => {
+            api.post(`/lots/${id}/toggle-favorite`).then(() => {
+              dispatch(toggleFavoriteLot(id));
+            });
+          };
+
+          return <Lot lot={lot} toggleFavorite={toggleFavorite} />;
+        }}
+      </StoreContext.Consumer>
     );
   }
 
@@ -268,22 +350,20 @@
         className={isFavorite ? 'unfavorite' : 'favorite' }
       >
         <ion-icon name={isFavorite ? 'heart-sharp' : 'heart-outline'} />
-        { isFavorite ? 'Unfavorite' : 'Favorite'}
+        {
+          isFavorite
+            ? 'Unfavorite'
+            : 'Favorite'
+        }
       </button>
     );
   }
 
   function renderView(store) {
-    const state = store.getState();
-
-    const toggleFavorite = (id) => {
-      api.post(`/lots/${id}/toggle-favorite`).then(() => {
-        store.dispatch(toggleFavoriteLot(id));
-      });
-    }
-
     ReactDOM.render(
-      <App state={state} toggleFavorite={toggleFavorite} />,
+      <StoreContext.Provider value={store}>
+        <App />
+      </StoreContext.Provider>,
       document.getElementById('root')
     );
   }
