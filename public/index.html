@@ -181,6 +181,50 @@
 
   const StoreContext = React.createContext();
 
+  function connect(mapStateToProps, mapDispatchToProps) {
+    return (WrappedComponent) => {
+      return (props) => {
+        return (
+          <StoreContext.Consumer>
+            {(store) => {
+              return React.createElement(
+                class extends React.Component {
+                  render() {
+                    const state = store.getState();
+                    const { dispatch } = store;
+
+                    const stateToProps = mapStateToProps ? mapStateToProps(state) : {};
+                    const dispatchToProps = mapDispatchToProps ? mapDispatchToProps(dispatch) : {};
+
+                    return (
+                      <WrappedComponent
+                        {...this.props}
+                        {...stateToProps}
+                        {...dispatchToProps}
+                      />
+                    );
+                  }
+                  componentDidMount() {
+                    this.unsubscribe = store.subscribe(
+                      this.handleChange.bind(this)
+                    );
+                  }
+                  componentWillUnmount() {
+                    this.unsubscribe();
+                  }
+                  handleChange() {
+                    this.forceUpdate()
+                  }
+                },
+                props
+              );
+            }}
+          </StoreContext.Consumer>
+        );
+      }
+    }
+  }
+
   function App() {
     return (
       <div className="app">
@@ -217,18 +261,11 @@
     );
   }
 
-  function ClockConnected() {
-    return (
-      <StoreContext.Consumer>
-        {(store) => {
-          const state = store.getState();
-          const time = state.clock.time;
+  const clockMapStateToProps = (state) => ({
+    time: state.clock.time
+  });
 
-          return <Clock time={time} />
-        }}
-      </StoreContext.Consumer>
-    );
-  }
+  const ClockConnected = connect(clockMapStateToProps, null)(Clock);
 
   function Clock({ time }) {
     const isDay = time.getHours() >= 7 && time.getHours() <= 21;
@@ -281,18 +318,11 @@
   //
   // mocha.run();
 
-  function LotsConnected() {
-    return (
-      <StoreContext.Consumer>
-        {(store) => {
-          const state = store.getState();
-          const lots = state.auction.lots;
+  const lotsMapStateToProps = (state) => ({
+    lots: state.auction.lots
+  });
 
-          return <Lots lots={lots} />;
-        }}
-      </StoreContext.Consumer>
-    );
-  }
+  const LotsConnected = connect(lotsMapStateToProps, null)(Lots);
 
   function Lots({ lots }) {
     if (lots === null) {
@@ -310,21 +340,15 @@
     );
   }
 
-  function LotConnected({ lot }) {
-    return (
-      <StoreContext.Consumer>
-        {({ dispatch }) => {
-          const toggleFavorite = (id) => {
-            api.post(`/lots/${id}/toggle-favorite`).then(() => {
-              dispatch(toggleFavoriteLot(id));
-            });
-          };
+  const lotMapDispatchToProps = (dispatch) => ({
+    toggleFavorite: (id) => {
+      api.post(`/lots/${id}/toggle-favorite`).then(() => {
+        dispatch(toggleFavoriteLot(id));
+      })
+    }
+  });
 
-          return <Lot lot={lot} toggleFavorite={toggleFavorite} />;
-        }}
-      </StoreContext.Consumer>
-    );
-  }
+  const LotConnected = connect(null, lotMapDispatchToProps)(Lot);
 
   function Lot({ lot, toggleFavorite }) {
     return (
