@@ -5,7 +5,6 @@
     <meta name="viewport"
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <link rel="stylesheet" href="https://unpkg.com/mocha@10/mocha.css">
     <link rel="stylesheet" href="styles.css">
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
@@ -14,8 +13,6 @@
     <script src="https://unpkg.com/react-redux@8/dist/react-redux.js" crossorigin></script>
     <script src="https://unpkg.com/redux-thunk@2/dist/redux-thunk.js" crossorigin></script>
     <script src="https://unpkg.com/ionicons@7/dist/ionicons.js" crossorigin></script>
-    <script src="https://unpkg.com/mocha@10/mocha.js" crossorigin></script>
-    <script src="https://unpkg.com/chai@4/chai.js" crossorigin></script>
     <title>🕵 Investigating Reactivity</title>
 </head>
 <body>
@@ -30,24 +27,28 @@
     get(url) {
       switch (url) {
         case '/lots': {
-          return new Promise((resolve) => {
+          return new Promise((resolve, reject) => {
             setTimeout(() => {
-              resolve([
-                {
-                  id: 1,
-                  name: 'Apple',
-                  description: 'Apple description',
-                  price: 16,
-                  is_favorite: true
-                },
-                {
-                  id: 2,
-                  name: 'Orange',
-                  description: 'Orange description',
-                  price: 41,
-                  is_favorite: false
-                }
-              ]);
+              if (Math.random() > 0.25) {
+                resolve([
+                  {
+                    id: 1,
+                    name: 'Apple',
+                    description: 'Apple description',
+                    price: 16,
+                    is_favorite: true
+                  },
+                  {
+                    id: 2,
+                    name: 'Orange',
+                    description: 'Orange description',
+                    price: 41,
+                    is_favorite: false
+                  }
+                ]);
+              } else {
+                reject(new Error('Connection error!'))
+              }
             }, 1500)
           });
         }
@@ -73,55 +74,56 @@
       const match = /price-(\d+)/.exec(channel);
 
       if (match) {
-        setInterval(() => {
+        const interval = setInterval(() => {
           listener({
             id: parseInt(match[1]),
             price: Math.round((Math.random() * 10 + 30))
           });
         }, 400);
+
+        return () => clearInterval(interval);
       }
     }
   }
 
-  const clockInitialState = {
-    time: new Date(),
-  }
-
-  const SET_TIME = 'SET_TIME';
-
-  function clockReducer(state = clockInitialState, action) {
-    switch (action.type) {
-      case SET_TIME:
-        return {
-          ...state,
-          time: action.time
-        };
-      default:
-        return state;
-    }
-  }
-
-  function setTime(time) {
-    return {
-      type: SET_TIME,
-      time
-    }
-  }
-
   const auctionInitialState = {
-    lots: null
-  }
+    lots: [],
+    isLoading: false,
+    isLotsLoaded: false,
+    error: null
+  };
 
-  const SET_LOTS = 'SET_LOTS';
+  const LOTS_LOADING_PENDING = 'LOTS_LOADING_PENDING';
+  const LOTS_LOADING_SUCCESS = 'LOTS_LOADING_SUCCESS';
+  const LOTS_LOADING_ERROR = 'LOTS_LOADING_ERROR';
   const CHANGE_LOT_PRICE = 'UPDATE_LOT_PRICE';
   const TOGGLE_FAVORITE_LOT = 'TOGGLE_FAVORITE';
 
   function auctionReducer(state = auctionInitialState, action) {
     switch (action.type) {
-      case SET_LOTS:
+      case LOTS_LOADING_PENDING:
         return {
           ...state,
-          lots: action.lots
+          lots: [],
+          isLoading: true,
+          isLotsLoaded: false,
+          error: null
+        };
+      case LOTS_LOADING_SUCCESS:
+        return {
+          ...state,
+          lots: action.lots,
+          isLoading: false,
+          isLotsLoaded: true,
+          error: null
+        };
+      case LOTS_LOADING_ERROR:
+        return {
+          ...state,
+          lots: [],
+          isLoading: false,
+          isLotsLoaded: false,
+          error: action.error
         };
       case CHANGE_LOT_PRICE:
         return {
@@ -154,11 +156,33 @@
     }
   }
 
-  function setLots(lots) {
+  function lotsLoadingPending() {
     return {
-      type: SET_LOTS,
+      type: LOTS_LOADING_PENDING
+    }
+  }
+
+  function lotsLoadingSuccess(lots) {
+    return {
+      type: LOTS_LOADING_SUCCESS,
       lots
     }
+  }
+
+  function lotsLoadingError(error) {
+    return {
+      type: LOTS_LOADING_ERROR,
+      error
+    }
+  }
+
+  function loadLotsAsync() {
+    return (dispatch, getState, { api }) => {
+      dispatch(lotsLoadingPending());
+      api.get('/lots')
+        .then((lots) => dispatch(lotsLoadingSuccess(lots)))
+        .catch((error) =>  dispatch(lotsLoadingError(error)))
+    };
   }
 
   function changeLotPrice(id, price) {
@@ -166,6 +190,14 @@
       type: CHANGE_LOT_PRICE,
       id,
       price
+    }
+  }
+
+  function subscribeToLotPrice(id) {
+    return (dispatch, getState, { stream }) => {
+      return stream.subscribe(`price-${id}`, (data) => {
+        dispatch(changeLotPrice(data.id, data.price));
+      });
     }
   }
 
@@ -188,10 +220,9 @@
 
   const store = Redux.createStore(
     Redux.combineReducers({
-      clock: clockReducer,
       auction: auctionReducer
     }),
-    Redux.applyMiddleware(thunk.withExtraArgument({ api }))
+    Redux.applyMiddleware(thunk.withExtraArgument({ api, stream }))
   );
 
   const StoreContext = React.createContext();
@@ -244,8 +275,8 @@
     return (
       <div className="app">
         <Header />
-        <ClockConnected />
-        <LotsConnected />
+        <ClockContainer />
+        <LotsContainerConnected />
       </div>
     );
   }
@@ -254,6 +285,14 @@
     return (
       <div className="loading">
         Loading...
+      </div>
+    );
+  }
+
+  function AlertError({ message }) {
+    return (
+      <div className="error">
+        {message}
       </div>
     );
   }
@@ -276,11 +315,19 @@
     );
   }
 
-  const clockMapStateToProps = (state) => ({
-    time: state.clock.time
-  });
+  function ClockContainer() {
+    const [time, setTime] = React.useState(new Date());
 
-  const ClockConnected = ReactRedux.connect(clockMapStateToProps, null)(Clock);
+    React.useEffect(() => {
+      const interval = setInterval(() => {
+        setTime(new Date());
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }, [])
+
+    return <Clock time={time} />
+  }
 
   function Clock({ time }) {
     const isDay = time.getHours() >= 7 && time.getHours() <= 21;
@@ -295,71 +342,69 @@
     );
   }
 
-  //  tests
-
-  // mocha.setup('bdd');
-  // const assert = chai.assert;
-  //
-  // describe('Clock', () => {
-  //
-  //   it('Render time of day', () => {
-  //     const container = document.createElement('div');
-  //
-  //     ReactDOM.render(
-  //       <Clock time={new Date('2023-06-11T13:51:20')} />,
-  //       container
-  //     );
-  //
-  //     const clock = container.querySelector('.clock');
-  //
-  //     assert.equal(clock.querySelector('.value').innerText, '1:51:20 PM');
-  //     assert.equal(clock.querySelector('.icon').className, 'icon day');
-  //   });
-  //
-  //   it('Render time of night', () => {
-  //     const container = document.createElement('div');
-  //
-  //     ReactDOM.render(
-  //     <Clock time={new Date('2023-06-12T04:20:00')} />,
-  //     container
-  //     );
-  //
-  //     const clock = container.querySelector('.clock');
-  //
-  //     assert.equal(clock.querySelector('.value').innerText, '4:20:00 AM');
-  //     assert.equal(clock.querySelector('.icon').className, 'icon night');
-  //   });
-  // });
-  //
-  // mocha.run();
-
-  const lotsMapStateToProps = (state) => ({
-    lots: state.auction.lots
+  const lotsContainerMapStateToProps = (state) => ({
+    lots: state.auction.lots,
+    isLoading: state.auction.loading,
+    isLotsLoaded: state.auction.loaded,
+    error: state.auction.error
   });
 
-  const LotsConnected = ReactRedux.connect(lotsMapStateToProps, null)(Lots);
+  const lotsContainerMapsDispatchToProps = {
+    load: loadLotsAsync
+  };
 
-  function Lots({ lots }) {
-    if (lots === null) {
+  const LotsContainerConnected = ReactRedux.connect(
+    lotsContainerMapStateToProps,
+    lotsContainerMapsDispatchToProps
+  )(LotsContainer);
+
+  function LotsContainer({lots, isLoading, isLotsLoaded, error, load}) {
+    React.useEffect(() => {
+      if (!isLoading && !isLotsLoaded && error === null) {
+        load();
+      }
+    }, [isLoading, isLotsLoaded, error]);
+
+    if (error !== null) {
+      return <AlertError message={error.message} />
+    }
+
+    if (isLoading) {
       return <Loading />;
     }
 
+    return <Lots lots={lots} />
+  }
+
+  function Lots({ lots }) {
     return (
       <div className="lots">
         {
           lots.map(
-            (lot) => <LotConnected key={lot.id} lot={lot} />
+            (lot) => <LotContainerConnected key={lot.id} lot={lot} />
           )
         }
       </div>
     );
   }
 
-  const lotMapDispatchToProps = {
-    toggleFavorite: toggleFavoriteAsync
+  const lotContainerMapDispatchToProps = {
+    toggleFavorite: toggleFavoriteAsync,
+    subscribe: subscribeToLotPrice
   };
 
-  const LotConnected = ReactRedux.connect(null, lotMapDispatchToProps)(Lot);
+  const LotContainerConnected = ReactRedux.connect(
+    null,
+    lotContainerMapDispatchToProps
+  )(LotContainer);
+
+  function LotContainer({ lot, subscribe}) {
+    React.useEffect(() => {
+      return subscribe(lot.id);
+    }, [lot.id]);
+
+    return <Lot lot={lot} />
+  }
 
   function Lot({ lot, toggleFavorite }) {
     return (
@@ -384,7 +429,7 @@
         onClick={toggleFavorite}
         className={isFavorite ? 'unfavorite' : 'favorite' }
       >
-        <ion-icon name={isFavorite ? 'heart-sharp' : 'heart-outline'} />
+        <ion-icon name={isFavorite ? 'heart-sharp' : 'heart-outline'} className='icon' />
         {
           isFavorite
             ? 'Unfavorite'
@@ -408,20 +453,6 @@
   });
 
   renderView(store);
-
-  setInterval(() => {
-    store.dispatch(setTime(new Date()));
-  }, 1000);
-
-  api.get('/lots').then((lots) => {
-    store.dispatch(setLots(lots));
-
-    lots.forEach((lot) => {
-      stream.subscribe(`price-${lot.id}`, (data) => {
-        store.dispatch(changeLotPrice(data.id, data.price));
-      });
-    });
-  });
 
   function render(virtualDom, realDomRoot) {
     const evaluatedVirtualDom = evaluate(virtualDom);

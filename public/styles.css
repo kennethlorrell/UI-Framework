@@ -111,11 +111,14 @@ a {
 }
 
 button {
+    margin-top: 5px;
+    display: inline-block;
     cursor: pointer;
     border-radius: 4px;
     padding: 4px 6px;
     font-size: 0.8rem;
     outline: none;
+    font-weight: 700;
 }
 
 button:disabled {
@@ -189,4 +192,8 @@ button.unfavorite:disabled {
 .error ion-icon {
     margin-left: auto;
     cursor: pointer;
+}
+
+ion-icon {
+    padding-right: 5px;
 }
