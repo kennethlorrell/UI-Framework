@@ -5,15 +5,17 @@
     <meta name="viewport"
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <link rel="stylesheet" href="https://unpkg.com/mocha@10.2.0/mocha.css">
+    <link rel="stylesheet" href="https://unpkg.com/mocha@10/mocha.css">
     <link rel="stylesheet" href="styles.css">
     <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
-    <script src="https://unpkg.com/redux@4.2.1/dist/redux.js" crossorigin></script>
-    <script src="https://unpkg.com/ionicons@7.1.0/dist/ionicons.js" crossorigin></script>
-    <script src="https://unpkg.com/mocha@10.2.0/mocha.js" crossorigin></script>
-    <script src="https://unpkg.com/chai@4.3.7/chai.js" crossorigin></script>
+    <script src="https://unpkg.com/redux@4/dist/redux.js" crossorigin></script>
+    <script src="https://unpkg.com/react-redux@8/dist/react-redux.js" crossorigin></script>
+    <script src="https://unpkg.com/redux-thunk@2/dist/redux-thunk.js" crossorigin></script>
+    <script src="https://unpkg.com/ionicons@7/dist/ionicons.js" crossorigin></script>
+    <script src="https://unpkg.com/mocha@10/mocha.js" crossorigin></script>
+    <script src="https://unpkg.com/chai@4/chai.js" crossorigin></script>
     <title>🕵 Investigating Reactivity</title>
 </head>
 <body>
@@ -174,10 +176,23 @@
     }
   }
 
-  const store = Redux.createStore(Redux.combineReducers({
-    clock: clockReducer,
-    auction: auctionReducer
-  }));
+  function toggleFavoriteAsync(id) {
+    return (dispatch, getState, { api }) => {
+      api.post(`/lots/${id}/toggle-favorite`).then(() => {
+        dispatch(toggleFavoriteLot(id));
+      })
+    };
+  }
+
+  const thunk = ReduxThunk;
+
+  const store = Redux.createStore(
+    Redux.combineReducers({
+      clock: clockReducer,
+      auction: auctionReducer
+    }),
+    Redux.applyMiddleware(thunk.withExtraArgument({ api }))
+  );
 
   const StoreContext = React.createContext();
 
@@ -265,7 +280,7 @@
     time: state.clock.time
   });
 
-  const ClockConnected = connect(clockMapStateToProps, null)(Clock);
+  const ClockConnected = ReactRedux.connect(clockMapStateToProps, null)(Clock);
 
   function Clock({ time }) {
     const isDay = time.getHours() >= 7 && time.getHours() <= 21;
@@ -322,7 +337,7 @@
     lots: state.auction.lots
   });
 
-  const LotsConnected = connect(lotsMapStateToProps, null)(Lots);
+  const LotsConnected = ReactRedux.connect(lotsMapStateToProps, null)(Lots);
 
   function Lots({ lots }) {
     if (lots === null) {
@@ -340,15 +355,11 @@
     );
   }
 
-  const lotMapDispatchToProps = (dispatch) => ({
-    toggleFavorite: (id) => {
-      api.post(`/lots/${id}/toggle-favorite`).then(() => {
-        dispatch(toggleFavoriteLot(id));
-      })
-    }
-  });
+  const lotMapDispatchToProps = {
+    toggleFavorite: toggleFavoriteAsync
+  };
 
-  const LotConnected = connect(null, lotMapDispatchToProps)(Lot);
+  const LotConnected = ReactRedux.connect(null, lotMapDispatchToProps)(Lot);
 
   function Lot({ lot, toggleFavorite }) {
     return (
@@ -385,9 +396,9 @@
 
   function renderView(store) {
     ReactDOM.render(
-      <StoreContext.Provider value={store}>
+      <ReactRedux.Provider store={store}>
         <App />
-      </StoreContext.Provider>,
+      </ReactRedux.Provider>,
       document.getElementById('root')
     );
   }
