@@ -29,7 +29,7 @@
         case '/lots': {
           return new Promise((resolve, reject) => {
             setTimeout(() => {
-              if (Math.random() > 0.01) {
+              if (Math.random() > 0.25) {
                 resolve([
                   {
                     id: 1,
@@ -96,6 +96,7 @@
   const LOTS_LOADING_PENDING = 'LOTS_LOADING_PENDING';
   const LOTS_LOADING_SUCCESS = 'LOTS_LOADING_SUCCESS';
   const LOTS_LOADING_ERROR = 'LOTS_LOADING_ERROR';
+  const CLEAR_LOTS = 'CLEAR_LOTS';
   const CHANGE_LOT_PRICE = 'UPDATE_LOT_PRICE';
   const TOGGLE_FAVORITE_LOT = 'TOGGLE_FAVORITE';
 
@@ -150,6 +151,14 @@
             }
             return lot;
           })
+        }
+      case CLEAR_LOTS:
+        return {
+          ...state,
+          lots: [],
+          isLoading: false,
+          isLotsLoaded: false,
+          error: null
         }
       default:
         return state;
@@ -214,6 +223,12 @@
         dispatch(toggleFavoriteLot(id));
       })
     };
+  }
+
+  function clearLots() {
+    return {
+      type: CLEAR_LOTS
+    }
   }
 
   const thunk = ReduxThunk;
@@ -321,12 +336,14 @@
   }
 
   function Route(props) {
-    const { children } = props;
+    const { computedMatch, children } = props;
 
     return (
       <RouterContext.Consumer>
         {(value) => {
-          const match = matchPath(value.location, props);
+          const match = computedMatch
+            ? props.computedMatch
+            : matchPath(value.location, props);
 
           if (match) {
             return (
@@ -338,6 +355,26 @@
                 children={children}
               />
             );
+          }
+
+          return null;
+        }}
+      </RouterContext.Consumer>
+    );
+  }
+
+  function Switch({ children }) {
+    return (
+      <RouterContext.Consumer>
+        {(value) => {
+          for (const child of children) {
+            const match = matchPath(value.location, child.props);
+
+            if (match) {
+              return React.cloneElement(child, {
+                computedMatch: match
+              });
+            }
           }
 
           return null;
@@ -371,10 +408,15 @@
     );
   }
 
-  function AlertError({ message }) {
+  function AlertError({ message, retry }) {
     return (
       <div className="error">
-        {message}
+        <span>{message}</span>
+        {
+          retry && (
+            <ion-icon name="reload-circle" onClick={retry} />
+          )
+        }
       </div>
     );
   }
@@ -418,7 +460,7 @@
 
   function Content() {
     return (
-      <>
+      <Switch>
         <Route path="/" exact>
           <HomePage />
         </Route>
@@ -431,7 +473,18 @@
         <Route path="/help" exact>
           <HelpPage />
         </Route>
-      </>
+        <Route path=".*" exact>
+          <NotFound />
+        </Route>
+      </Switch>
+    );
+  }
+
+  function NotFound() {
+    return (
+      <div>
+        Not Found!
+      </div>
     );
   }
 
@@ -522,7 +575,8 @@
   });
 
   const lotsContainerMapsDispatchToProps = {
-    load: loadLotsAsync
+    load: loadLotsAsync,
+    unload: clearLots
   };
 
   const LotsContainerConnected = ReactRedux.connect(
@@ -530,15 +584,26 @@
     lotsContainerMapsDispatchToProps
   )(LotsContainer);
 
-  function LotsContainer({lots, isLoading, isLotsLoaded, error, load}) {
+  function LotsContainer({ lots, isLoading, isLotsLoaded, error, load, unload }) {
     React.useEffect(() => {
       if (!isLoading && !isLotsLoaded && error === null) {
         load();
       }
     }, [isLoading, isLotsLoaded, error]);
 
+    React.useEffect(() => {
+      if (isLotsLoaded || error !== null) {
+        return unload;
+      }
+    }, [isLoading, isLotsLoaded, error]);
+
     if (error !== null) {
-      return <AlertError message={error.message} />
+      return (
+        <AlertError
+          message={error.message}
+          retry={load}
+        />
+      );
     }
 
     if (isLoading) {
