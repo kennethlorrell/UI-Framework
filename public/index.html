@@ -307,9 +307,13 @@
       window.location.hash = location;
     };
 
+    const createHref = (path) => {
+      return `#${path}`;
+    };
+
     return (
       <RouterContext.Provider
-        value={{ location, navigate }}
+        value={{ location, navigate, createHref }}
         children={children}
       />
     );
@@ -318,7 +322,11 @@
   function Link({ to, children, ...options }) {
     return (
       <RouterContext.Consumer>
-        {({ navigate }) => {
+        {({ navigate, createHref }) => {
+          const href = to
+            ? createHref(to)
+            : '';
+
           const handleClick = (event) => {
             event.preventDefault();
 
@@ -326,7 +334,7 @@
           };
 
           return (
-            <a href={`#${to}`} onClick={handleClick} {...options}>
+            <a href={href} onClick={handleClick} {...options}>
               {children}
             </a>
           );
