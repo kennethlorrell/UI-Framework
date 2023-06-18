@@ -288,41 +288,98 @@
 
   const RouterContext = React.createContext();
 
-  function Router({ children }) {
-    const state = window.history.state;
-    const initialLocation = state
-      ? state.location
-      : window.location.pathname;
-    const [location, setLocation] = React.useState(initialLocation);
+  function Router({ history, children }) {
+    const [location, setLocation] = React.useState(history.location);
 
     React.useEffect(() => {
-      const listener = (event) => {
-        const state = event.state;
-        const newLocation = state
-          ? state.location
-          : window.location.pathname;
-
-        setLocation(newLocation);
-      }
-      window.addEventListener('popstate', listener, false);
-
-      return () => {
-        window.removeEventListener('popstate', listener);
-      }
+      return history.listen((location) => {
+        setLocation(location);
+      });
     }, [setLocation]);
-
-    const navigate = (location) => {
-      const state = {
-        location
-      };
-      window.history.pushState(state, '', location);
-
-      setLocation(location);
-    };
 
     return (
       <RouterContext.Provider
-        value={{ location, navigate }}
+        value={{ location, history }}
+        children={children}
+      />
+    );
+  }
+
+  function createBrowserHistory() {
+    return {
+      get location () {
+        const state = window.history.state;
+
+        return state
+          ? state.location
+          : window.location.pathname;
+      },
+      push(location) {
+        const state = { location };
+        window.history.pushState(state, '', location);
+
+        window.dispatchEvent(new PopStateEvent('popstate', { state }));
+      },
+      createHref(path) {
+        return path;
+      },
+      listen(listener) {
+        const stateListener = (event) => {
+          const state = event.state;
+          listener(
+            state ? state.location : window.location.pathname
+          );
+        }
+        window.addEventListener('popstate', stateListener, false);
+
+        return () => {
+          window.removeEventListener('popstate', stateListener);
+        }
+      }
+    };
+  }
+
+  function BrowserRouter({ children }) {
+    const history = createBrowserHistory();
+
+    return (
+      <Router
+        history={history}
+        children={children}
+      />
+    );
+  }
+
+  function createHashHistory() {
+    return {
+      get location () {
+        return window.location.hash.slice(1) || '/';
+      },
+      push(location) {
+        window.location.hash = location;
+      },
+      createHref(path) {
+        return `#${path}`;
+      },
+      listen(listener) {
+        const hashListener = () => {
+          listener(window.location.hash.slice(1));
+        }
+        window.addEventListener('hashchange', hashListener, false);
+
+        return () => {
+          window.removeEventListener('hashchange', hashListener);
+        }
+      }
+    };
+  }
+
+  function HashRouter({ children }) {
+    const history = createHashHistory();
+
+    return (
+      <Router
+        history={history}
         children={children}
       />
     );
@@ -331,13 +388,14 @@
   function Link({ to, children, ...options }) {
     return (
       <RouterContext.Consumer>
-        {({ navigate }) => {
-          const href = to || '';
+        {({ history }) => {
+          const href = to
+            ? history.createHref(to)
+            : '';
 
           const handleClick = (event) => {
             event.preventDefault();
-
-            navigate(to);
+            history.push(to);
           };
 
           return (
@@ -419,10 +477,10 @@
   function App() {
     return (
       <div className="app">
-        <Router>
+        <BrowserRouter>
           <Header />
           <Content />
-        </Router>
+        </BrowserRouter>
       </div>
     );
   }
