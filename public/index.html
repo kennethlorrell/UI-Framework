@@ -271,12 +271,64 @@
     }
   }
 
+  const RouterContext = React.createContext();
+
+  function Router({ children }) {
+    const [location, setLocation] = React.useState('/');
+
+    const navigate = (location) => {
+      setLocation(location);
+    };
+
+    return (
+      <RouterContext.Provider
+        value={{ location, navigate }}
+        children={children}
+      />
+    );
+  }
+
+  function Link({ to, children, ...options }) {
+    return (
+      <RouterContext.Consumer>
+        {({ navigate }) => {
+          const handleClick = (event) => {
+            event.preventDefault();
+
+            navigate(to);
+          };
+
+          return (
+            <a href="" onClick={handleClick} {...options}>
+              {children}
+            </a>
+          );
+        }}
+      </RouterContext.Consumer>
+    );
+  }
+
+  function Route({ path, children }) {
+    return (
+      <RouterContext.Consumer>
+        {({ location }) => {
+          if (location === path) {
+            return children;
+          }
+
+          return null;
+        }}
+      </RouterContext.Consumer>
+    );
+  }
+
   function App() {
     return (
       <div className="app">
-        <Header />
-        <ClockContainer />
-        <LotsContainerConnected />
+        <Router>
+          <Header />
+          <Content />
+        </Router>
       </div>
     );
   }
@@ -301,68 +353,28 @@
     return (
       <header className="header">
         <Logo />
-        <Router />
+        <Nav />
       </header>
     );
   }
 
-  function Router() {
-    const [location, setLocation] = React.useState('a');
-
-    const navigate = (location) => {
-      setLocation(location);
-    }
-
+  function Nav() {
     return (
-      <>
+      <nav>
         <ul>
           <li>
-            <Link to="a" navigate={navigate}>a</Link>
+            <Link to="/">Home</Link>
           </li>
           <li>
-            <Link to="b" navigate={navigate}>b</Link>
+            <Link to="/lots">Lots</Link>
           </li>
           <li>
-            <Link to="c" navigate={navigate}>c</Link>
+            <Link to="/help">Help</Link>
           </li>
         </ul>
-        <div>
-          <Route path="a" location={location}>
-            <p>Content A</p>
-          </Route>
-          <Route path="b" location={location}>
-            <p>Content B</p>
-          </Route>
-          <Route path="c" location={location}>
-            <p>Content C</p>
-          </Route>
-        </div>
-      </>
-    )
-  }
-
-  function Link({ to, navigate, children }) {
-    const handleClick = (event) => {
-      event.preventDefault();
-
-      navigate(to);
-    };
-
-    return (
-      <a href="" onClick={handleClick}>
-        {children}
-      </a>
+      </nav>
     );
   }
-
-  function Route({ path, location, children }) {
-    if (location === path) {
-      return children;
-    }
-
-    return null;
-  }
-
 
   function Logo() {
     return (
@@ -371,6 +383,55 @@
         src="logo.png"
         alt="Logotype"
       />
+    );
+  }
+
+  function Content() {
+    return (
+      <>
+        <Route path="/" location={location}>
+          <HomePage />
+        </Route>
+        <Route path="/lots" location={location}>
+          <LotsPage />
+        </Route>
+        <Route path="/help" location={location}>
+          <HelpPage />
+        </Route>
+      </>
+    );
+  }
+
+  function HomePage() {
+    return (
+      <section className="page">
+        <h1>Welcome</h1>
+        <p>Welcome to auction!</p>
+        <p>View <Link to="/lots">lots</Link> or read our <Link to="/about">help</Link></p>
+      </section>
+    );
+  }
+
+  function LotsPage() {
+    return (
+      <>
+        <ClockContainer />
+        <LotsContainerConnected />
+      </>
+    );
+  }
+
+  function HelpPage() {
+    return (
+      <section className="page">
+        <h1>Help</h1>
+        <p>Go to <Link to="/lots">lots</Link> and:</p>
+        <ol>
+          <li>Choose an interesting lot</li>
+          <li>Add the lot to favorite list</li>
+        </ol>
+        <p>Back to <Link to="/">home</Link></p>
+      </section>
     );
   }
 
