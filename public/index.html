@@ -29,7 +29,7 @@
         case '/lots': {
           return new Promise((resolve, reject) => {
             setTimeout(() => {
-              if (Math.random() > 0.25) {
+              if (Math.random() > 0.01) {
                 resolve([
                   {
                     id: 1,
@@ -308,18 +308,48 @@
     );
   }
 
-  function Route({ path, children }) {
+  function matchPath(location, props) {
+    const { path, exact } = props;
+
+    const regexp = new RegExp(
+      exact
+        ? `^${path}$`
+        : `^${path}(/.*)?`
+    );
+
+    return regexp.exec(location);
+  }
+
+  function Route(props) {
+    const { children } = props;
+
     return (
       <RouterContext.Consumer>
-        {({ location }) => {
-          if (location === path) {
-            return children;
+        {(value) => {
+          const match = matchPath(value.location, props);
+
+          if (match) {
+            return (
+              <RouterContext.Provider
+                value = {{
+                  ...value,
+                  match
+                }}
+                children={children}
+              />
+            );
           }
 
           return null;
         }}
       </RouterContext.Consumer>
     );
+  }
+
+  function useParams() {
+    const router = React.useContext(RouterContext);
+
+    return router.match.groups;
   }
 
   function App() {
@@ -389,26 +419,37 @@
   function Content() {
     return (
       <>
-        <Route path="/" location={location}>
+        <Route path="/" exact>
           <HomePage />
         </Route>
-        <Route path="/lots" location={location}>
+        <Route path="/lots" exact>
           <LotsPage />
         </Route>
-        <Route path="/help" location={location}>
+        <Route path="/lots/(?<id>[\w-]+)" exact>
+          <LotPage />
+        </Route>
+        <Route path="/help" exact>
           <HelpPage />
         </Route>
       </>
     );
   }
 
-  function HomePage() {
+  function Page({ children }) {
     return (
       <section className="page">
+        {children}
+      </section>
+    );
+  }
+
+  function HomePage() {
+    return (
+      <Page>
         <h1>Welcome</h1>
         <p>Welcome to auction!</p>
         <p>View <Link to="/lots">lots</Link> or read our <Link to="/about">help</Link></p>
-      </section>
+      </Page>
     );
   }
 
@@ -421,9 +462,20 @@
     );
   }
 
+  function LotPage() {
+    const params = useParams();
+
+    return (
+      <Page>
+        <h1>Lot #{params.id}</h1>
+        <p>Lot description</p>
+      </Page>
+    );
+  }
+
   function HelpPage() {
     return (
-      <section className="page">
+      <Page>
         <h1>Help</h1>
         <p>Go to <Link to="/lots">lots</Link> and:</p>
         <ol>
@@ -431,7 +483,7 @@
           <li>Add the lot to favorite list</li>
         </ol>
         <p>Back to <Link to="/">home</Link></p>
-      </section>
+      </Page>
     );
   }
 
@@ -536,7 +588,9 @@
         <div className="price">
           {lot.price}
         </div>
-        <h1>{lot.name}</h1>
+        <h1>
+          <Link to={`/lots/${lot.id}`}>{lot.name}</Link>
+        </h1>
         <div>{lot.description}</div>
         <Favorite
           isFavorite={lot.is_favorite}
