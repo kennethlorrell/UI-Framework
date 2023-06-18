@@ -289,10 +289,22 @@
   const RouterContext = React.createContext();
 
   function Router({ children }) {
-    const [location, setLocation] = React.useState('/');
+    const initialLocation = window.location.hash.slice(1) || '/';
+    const [location, setLocation] = React.useState(initialLocation);
+
+    React.useEffect(() => {
+      const listener = () => {
+        setLocation(window.location.hash.slice(1));
+      }
+      window.addEventListener('hashchange', listener, false);
+
+      return () => {
+        window.removeEventListener('hashchange', listener);
+      }
+    }, [setLocation]);
 
     const navigate = (location) => {
-      setLocation(location);
+      window.location.hash = location;
     };
 
     return (
@@ -314,7 +326,7 @@
           };
 
           return (
-            <a href="" onClick={handleClick} {...options}>
+            <a href={`#${to}`} onClick={handleClick} {...options}>
               {children}
             </a>
           );
