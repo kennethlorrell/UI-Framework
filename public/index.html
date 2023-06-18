@@ -210,7 +210,7 @@
 
   function toggleFavoriteAsync(id) {
     return (dispatch, getState, { api }) => {
-      api.post(`/lots/${id}/toggle-favorite`).then(() => {
+      return api.post(`/lots/${id}/toggle-favorite`).then(() => {
         dispatch(toggleFavoriteLot(id));
       })
     };
@@ -301,9 +301,68 @@
     return (
       <header className="header">
         <Logo />
+        <Router />
       </header>
     );
   }
+
+  function Router() {
+    const [location, setLocation] = React.useState('a');
+
+    const navigate = (location) => {
+      setLocation(location);
+    }
+
+    return (
+      <>
+        <ul>
+          <li>
+            <Link to="a" navigate={navigate}>a</Link>
+          </li>
+          <li>
+            <Link to="b" navigate={navigate}>b</Link>
+          </li>
+          <li>
+            <Link to="c" navigate={navigate}>c</Link>
+          </li>
+        </ul>
+        <div>
+          <Route path="a" location={location}>
+            <p>Content A</p>
+          </Route>
+          <Route path="b" location={location}>
+            <p>Content B</p>
+          </Route>
+          <Route path="c" location={location}>
+            <p>Content C</p>
+          </Route>
+        </div>
+      </>
+    )
+  }
+
+  function Link({ to, navigate, children }) {
+    const handleClick = (event) => {
+      event.preventDefault();
+
+      navigate(to);
+    };
+
+    return (
+      <a href="" onClick={handleClick}>
+        {children}
+      </a>
+    );
+  }
+
+  function Route({ path, location, children }) {
+    if (location === path) {
+      return children;
+    }
+
+    return null;
+  }
+
 
   function Logo() {
     return (
@@ -344,8 +403,8 @@
 
   const lotsContainerMapStateToProps = (state) => ({
     lots: state.auction.lots,
-    isLoading: state.auction.loading,
-    isLotsLoaded: state.auction.loaded,
+    isLoading: state.auction.isLoading,
+    isLotsLoaded: state.auction.isLotsLoaded,
     error: state.auction.error
   });
 
@@ -373,6 +432,10 @@
       return <Loading />;
     }
 
+    if (!isLotsLoaded) {
+      return null;
+    }
+
     return <Lots lots={lots} />
   }
 
@@ -398,12 +461,12 @@
     lotContainerMapDispatchToProps
   )(LotContainer);
 
-  function LotContainer({ lot, subscribe}) {
+  function LotContainer({ lot, subscribe, toggleFavorite}) {
     React.useEffect(() => {
       return subscribe(lot.id);
     }, [lot.id]);
 
-    return <Lot lot={lot} />
+    return <Lot lot={lot} toggleFavorite={toggleFavorite} />
   }
 
   function Lot({ lot, toggleFavorite }) {
@@ -423,11 +486,21 @@
   }
 
   function Favorite({ isFavorite, toggleFavorite }) {
+    const [enabled, setEnabled] = React.useState(true);
+
+    const handleToggleFavorite = () => {
+      setEnabled(false);
+
+      toggleFavorite()
+        .finally(() => setEnabled(true))
+    }
+
     return (
       <button
         type="button"
-        onClick={toggleFavorite}
+        onClick={handleToggleFavorite}
         className={isFavorite ? 'unfavorite' : 'favorite' }
+        disabled={!enabled}
       >
         <ion-icon name={isFavorite ? 'heart-sharp' : 'heart-outline'} className='icon' />
         {
